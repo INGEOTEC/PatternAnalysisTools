@@ -3,14 +3,13 @@ The idea behind PatternAnalysisTools is to enrich the UNIX's tool set to perform
 
 The idea is to be used jointly with unix pipes and command line tools like awk, perl, grep, etc.; a lot of possible features will never be implemented.
 
-Right now PatternAnalysisTools contains the PatternSearch/matches.jl command with several options
+Currently, PatternAnalysisTools contains a single command with several options
 
 ## Documentation of the command line
 
 Usage: julia PatternSearch/matches.jl KIND SEP KEY CONFIG STOPWORDS PAT1 PAT2 ...
-    Where
     
-KIND is substring|intersect|kerrors|voc|radius
+KIND is substring|intersect|kerrors|radius|voc
 - in the case of kerrors you can specify the maximum number of errors using the syntax kerrors:numerrors
 - the default kind is not specified, it is a mandatory argument
 - radius dumps records intersecting a ball; the center and radius of the ball (in kilometers). It uses the harvesing formulae to compute distances. The syntax is radius:JSON-coordinates
@@ -18,6 +17,7 @@ KIND is substring|intersect|kerrors|voc|radius
     - for example,
          - radius:'{"coordinates":[-102.295914,21.918859], "radius": 0.3}'
 - voc dumps the vocabulary's histogram sorted by increasing frequency
+
 SEP is the separator string
 - the syntax is sep:sepstring, e.g.,
     - sep:"<SEP>" -- a <SEP> string
