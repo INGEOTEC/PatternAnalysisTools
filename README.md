@@ -11,3 +11,5 @@ The available commands are:
 - _neardup.jl_ It removes the items being near duplicates, it preserves the first item seen
 - _voc.jl_ It produces thesaurus and its histograms, it can work under several text-normalizing functions and tokenizers
 - _radius.jl_ It filters items using geo-location information
+- _dumptab.jl_ Dumps the json items as  column records
+- _jsonclean.jl_ Allows to drop and select pais in the json records
