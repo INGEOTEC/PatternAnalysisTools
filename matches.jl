@@ -39,6 +39,15 @@ function normpatternsset(patlist::Vector{Vector{String}}, config::TextConfig)
     Set(A)
 end
 
+function intersectmatch(tokens, pat)
+    for w in pat
+        if !(w in tokens)
+            return false
+        end
+    end
+    return true
+end
+
 function intersectmatch(fun, wrap, input, config::TextConfig, key, patlist::Vector{Vector{String}})
     patlist = normpatternsset(patlist, config)
 
@@ -48,25 +57,10 @@ function intersectmatch(fun, wrap, input, config::TextConfig, key, patlist::Vect
         matches = 0
         for (i, patterns) in enumerate(patlist)
             for pat in patterns
-                # if length(tokens) != length(pat)
-                #    continue
-                # end
-                matched = true
-                for p in pat
-                    if !(p in tokens)
-                        matched = false
-                        break
-                    end
+                if intersectmatch(tokens, pat)
+                    matches +=1
+                    break
                 end
-
-                !matched && break
-                matches +=1
-                break
-                # iset = intersect(tokens, pat)
-                # if length(iset) == length(pat)
-                #    matches += 1
-                #    break
-                # end
             end
             matches != i && break
         end
