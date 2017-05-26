@@ -5,9 +5,9 @@ using JSON
 const NUM_FAST_LINKS = 7
 
 function set_oracle(index, fastlinks::Dict{UInt64,KnnResult})
-    function oracle(q::HBOW)::Vector{Int32}
+    function oracle(q::VBOW)::Vector{Int32}
         L = Int32[]
-        for term in q.terms
+        for term in q.tokens
             if haskey(fastlinks, term.id)
                 for p in fastlinks[term.id]
                     push!(L, p.objID)
@@ -22,8 +22,8 @@ function set_oracle(index, fastlinks::Dict{UInt64,KnnResult})
     fastlinks
 end
 
-function update_oracle(index, fastlinks, bow::HBOW)
-    for term in bow.terms
+function update_oracle(index, fastlinks, bow::VBOW)
+    for term in bow.tokens
         if !haskey(fastlinks, term.id)
             fastlinks[term.id] = KnnResult(NUM_FAST_LINKS)
         end
@@ -38,7 +38,7 @@ function create_index()
     #config.qlist = [2, 3, 5]
     config.skiplist = []
     
-    index = LocalSearchIndex(HBOW, AngleDistance(), recall=0.90, neighborhood=Nullable{NeighborhoodAlgorithm}(LogSatNeighborhood(1.5)))
+    index = LocalSearchIndex(VBOW, angle_distance, recall=0.90, neighborhood=Nullable{NeighborhoodAlgorithm}(LogSatNeighborhood(1.5)))
     fastlinks = set_oracle(index, Dict{UInt64,KnnResult}())
     # index.options.verbose = false
     return index, config, fastlinks
@@ -52,7 +52,7 @@ function main(filename)
     iterlines(filename) do line
         tweet = TextModel.parsetweet(line)
         lineno += 1
-        bow = compute_bow(tweet["text"], config) |> HBOW
+        bow = compute_bow(tweet["text"], config) |> VBOW
 
         knn, N = find_neighborhood(index, bow)
         if length(knn) > 0 && first(knn).dist < 1.0
