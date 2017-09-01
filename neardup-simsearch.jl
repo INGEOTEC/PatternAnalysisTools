@@ -1,5 +1,6 @@
 using SimilaritySearch
 using TextModel
+using SnowballStemmer
 using JSON
 
 function set_oracle(index, fastlinks::Dict{UInt64,KnnResult})
@@ -16,7 +17,7 @@ function set_oracle(index, fastlinks::Dict{UInt64,KnnResult})
         if length(L) == 0
             # just link randomly for orthogonal vectors
             n = length(index.db)
-            return rand(1:n, floor(Int, log2(n)))
+            return rand(1:n, floor(Int, log2(n+1)))
         end
 
         # @show L, fastlinks
@@ -37,31 +38,73 @@ function update_oracle(index, fastlinks, bow::VBOW, num_fast_links)
 end
 
 function create_index()
-    config = TextConfig()
-    config.nlist = []
-    config.qlist = [5]
-    #config.qlist = [2, 3, 5]
-    config.skiplist = []
-
-    index = LocalSearchIndex(VBOW, angle_distance, recall=0.90, neighborhood=Nullable{NeighborhoodAlgorithm}(LogSatNeighborhood(1.5)))
+    index = LocalSearchIndex(VBOW, angle_distance, recall=0.90, neighborhood=LogSatNeighborhood(1.5))
     fastlinks = set_oracle(index, Dict{UInt64,KnnResult}())
     # index.options.verbose = false
-    return index, config, fastlinks
+    return index, fastlinks
 end
 
-function main(filename, dup_threshold, key, num_fast_links)
-    index, config, fastlinks = create_index()
+function create_normalizer(stemming, tabufiles, config)
+    tabu = Set{String}()
+    if length(tabufiles) > 0
+        for filename in split(tabufiles, ':')
+            words = split(TextModel.normalize_text(readstring(filename), config) |> join)
+            union!(tabu, words)
+        end
+    end
+
+    emptystring = ""
+    if length(stemming) > 0
+        S = Stemmer(stemming)
+        if length(tabu) > 0
+            info("CREATING stemming && tabu $(length(tabu))")
+            return (w) -> if w ∈ tabu
+                emptystring
+            else
+                stem(S, w)
+            end
+        else
+            return (w) -> stem(S, w)
+        end
+    else
+        if length(tabu) > 0
+            return (w) -> if w ∈ tabu
+                emptystring
+            else
+                w
+            end
+        else
+            return identity
+        end
+    end
+end
+
+function main(filename, dup_threshold, key, num_fast_links; stemming="", verbose=false, tabu="")
+    config = TextConfig()
+    config.nlist = [1]
+    config.qlist = []
+    config.skiplist = []
+    config.normalize = create_normalizer(stemming, tabu, config)
+    index, fastlinks = create_index()
+    index.options.verbose = verbose
+
     lineno = 0
+
     DB = []
 
     iterlines(filename) do line
         tweet = TextModel.parsetweet(line)
         lineno += 1
-        bow = compute_bow(tweet[key], config) |> VBOW
-
+        rawbow = compute_bow(tweet[key], config)
+        # info(rawbow)
+        bow = VBOW(rawbow)
         knn, N = find_neighborhood(index, bow)
         if length(knn) > 0 && first(knn).dist < dup_threshold
-            info("NEAR OBJECT:", first(knn), line, "; ORIGINAL:", DB[first(knn).objID])
+            if verbose
+                info("- DISCARDED:", line)
+                info("-  ORIGINAL:", DB[first(knn).objID])
+                info("-  DISTANCE:", first(knn).dist, " < ", dup_threshold)
+            end
         else
             push_neighborhood!(index, bow, N, length(index.db))
             update_oracle(index, fastlinks, bow, num_fast_links)  # adding fast links
@@ -70,7 +113,7 @@ function main(filename, dup_threshold, key, num_fast_links)
         end
 
         if lineno % 1000 == 0
-            info("selected $(length(DB)) of $(lineno)")
+            info("selected $(length(DB)) of $(lineno), drop-ratio: $(length(DB) / lineno)")
         end
 
     end
@@ -95,6 +138,11 @@ if length(ARGS) == 0
 
     - num_fast_links: the number of documents stored per token to help localsearch indexes to perform fast lookups
        default: 7
+
+    - stemming: specifies stemming rules to apply.
+      e.g. stemming=spanish
+       valid values: "", "danish", "dutch", "english", "finnish", "french", "german", "hungarian", "italian", "norwegian", "porter", "portuguese", "romanian", "russian", "spanish", "swedish", "turkish"
+    - verbose: if enabled (verbose=true) the output becomes too noisy :S
     """)
 else
     for filename in ARGS
@@ -102,7 +150,10 @@ else
             filename,
             parse(Float64, get(ENV, "dup_threshold", "1.0")),
             get(ENV, "key", "text"),
-            parse(Int, get(ENV, "num_fast_links", "7"))
+            parse(Int, get(ENV, "num_fast_links", "7")),
+            verbose=parse(Bool, get(ENV, "verbose", "false")),
+            tabu=get(ENV, "tabu", ""),
+            stemming=get(ENV, "stemming", ""),
         )
     end
 end
